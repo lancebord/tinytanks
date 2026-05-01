@@ -1,6 +1,10 @@
 INCLUDE "defines.inc"
 INCLUDE "hardware.inc/hardware.inc"
 
+SECTION "Level variables", WRAM0
+
+wUpdateCountdown:: db
+
 SECTION "Level1", ROMX
 
 Level1::
@@ -38,63 +42,19 @@ Level1::
     ld a, %10110100
     ld [hBGP], a
 
-    ; Load tank graphics into bank 0
-    ld de, TankTiles
-    ld hl, STARTOF(VRAM)
-    ld bc, TankTilesEnd - TankTiles
-    call Memcpy
-
-    ; Clear shadow OAM
-    ld hl, wShadowOAM
-    ld c, OAM_COUNT * 4
-    xor a
-    rst MemsetSmall
-
-    ; Write tank sprite to shadow OAM
-    ld hl, wShadowOAM
-    ; Entry 0 - left half
-    ld a, 80 ; Y
-    ld [hli], a
-    ld a, 16 ; X
-    ld [hli], a
-    ld a, 0 ; tile
-    ld [hli], a
-    ld a, 0 ; flags
-    ld [hli], a
-    ; Entry 1 - right half
-    ld a, 80 ; Y
-    ld [hli], a
-    ld a, 24 ; X + 8
-    ld [hli], a
-    ld a, 2 ; tile
-    ld [hli], a
-    ld a, 0 ; flags
-    ld [hli], a
-
-    ; set sprite palette
-    ld a, %11100100
-    ldh [hOBP0], a
-
-    ; Set hOAMHigh to trigger DMA on next VBlank
-    ld a, HIGH(wShadowOAM)
-    ldh [hOAMHigh], a
-
-    ; load the HUD graphics into VRAM
-    ld de, HudTiles
-    ld hl, $9000
-    ld bc, HudTilesEnd - HudTiles
-    call Memcpy
+    ; load in the player graphics
+    call PlayerInit
 
     ; write HUD to window tilemap
     ld hl, $9C00 ; window tilemap start
-    ld a, $9000 ; tank HUD tile index
+    xor a
     ld b, 5
     .hudLives:
         ld [hli], a
         dec b
         jr nz, .hudLives
 
-    ld a, $9000 + 27
+    ld a, 27
     ld b, 5
     .hudBlanks
         ld [hli], a
@@ -102,13 +62,13 @@ Level1::
         jr nz, .hudBlanks
 
     ; load the s =
-    ld a, $9000 + 23
+    ld a, 23
     ld [hli], a
-    ld a, $9000 + 26
+    ld a, 26
     ld [hli], a
 
     ; load the zeros
-    ld a, $9000 + 1
+    ld a, 1
     ld b, 8
     .hudZeros
         ld [hli], a
@@ -126,7 +86,32 @@ Level1::
     ldh [hLCDC], a
     ldh [rLCDC], a
 
-    jr @ ; TODO game logic
+    ; reset the level countdown
+    ld hl, wUpdateCountdown
+    ld a, 12
+    ld [hl], a
+.main:
+    call WaitVBlank
+
+    ; Instant response on fresh press
+    ldh a, [hPressedKeys]
+    and PAD_LEFT | PAD_RIGHT
+    jr z, .checkCountdown
+    call PlayerUpdate
+    ld a, 12
+    ld [wUpdateCountdown], a
+    jr .main
+
+.checkCountdown:
+    ld hl, wUpdateCountdown
+    dec [hl]
+    jr nz, .main
+    push hl
+    call PlayerUpdate
+    pop hl
+    ld a, 12
+    ld [hl], a
+    jr .main
 
 
 SECTION "Tank Sprite", ROMX
