@@ -23,13 +23,13 @@ Intro::
 
 	; Copy tiles to VRAM tile block 0 ($8000)
 	ld de, TitleTiles
-	ld hl, $8000
+	ld hl, STARTOF(VRAM)
 	ld bc, TitleTilesEnd - TitleTiles
 	call Memcpy
 
 	; Copy tilemap to background map ($9800)
 	ld de, TitleMap
-	ld hl, $9800
+	ld hl, TILEMAP0
 	ld b, SCREEN_HEIGHT       ; 18 rows
 .rowloop:
 	ld c, SCREEN_WIDTH        ; copy 20 tiles
@@ -51,7 +51,7 @@ Intro::
 	; Turn LCD back on
 	ld a, LCDC_ON | LCDC_BG_ON | LCDC_BLOCK01 | LCDC_BG_9800
 	ldh [hLCDC], a
-	ldh [rLCDC], a
+	ldh [rLCDC], a ; this is necessary cuz there won't be a vblank interrupt until the screen is on
 	
 .waitStart:
 	call WaitVBlank
@@ -72,9 +72,12 @@ Intro::
 	ldh [hBGP], a
 	dec b
 	jr nz, .fadeStep
-
-	; TODO: transition to next screen here
-	jr @
+	
+	; set the mission to 0 before starting
+	ld hl, wMissionNumber
+	xor a
+	ld [hl], a
+	jp Level1
 
 .fadePalettes:
 	db %01100000
@@ -94,7 +97,7 @@ InitMainSong::
 	ldh [rAUDVOL], a ; Even volume scale per channel
 
 	; Initialize hUGETracker
-	ld hl, battle_theme
+	ld hl, title_theme
 	call hUGE_init
 
 	ret

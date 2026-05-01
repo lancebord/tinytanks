@@ -32,12 +32,9 @@ clean:
 .PHONY: clean
 
 VPATH := src
-assets/%.2bpp: src/assets/%.png
+assets/%.2bpp: assets/%.png
 	@mkdir -p "${@D}"
-	${RGBGFX} -o $@ --tilemap ${@:.2bpp=.tilemap} --unique-tiles $<
-
-assets/%.tilemap: assets/%.2bpp
-	@:
+	${RGBGFX} -o $@ $<
 
 assets/%.1bpp: assets/%.png
 	@mkdir -p "${@D}"
