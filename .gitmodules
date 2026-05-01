@@ -1,0 +1,9 @@
+[submodule "src/include/hardware.inc"]
+	path = include/hardware.inc
+	url = https://github.com/gbdev/hardware.inc.git
+[submodule "src/include/rgbds-structs"]
+	path = include/rgbds-structs
+	url = https://codeberg.org/ISSOtm/rgbds-structs
+[submodule "include/debugfile.inc"]
+	path = include/debugfile.inc
+	url = https://codeberg.org/ISSOtm/debugfile.inc
