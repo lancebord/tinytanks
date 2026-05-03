@@ -5,8 +5,7 @@ SECTION "Player variables", WRAM0
 
 ; 0 = N, 1 = NE, 2 = E, 3 = SE, 4 = S, 5 = SW, 6 = W, 7 = NW
 wPlayerFacing: db
-wPlayerSubX: db
-wPlayerSubY: db
+wPlayerSubD: db
 
 SECTION "Player", ROMX
 
@@ -63,6 +62,10 @@ PlayerInit::
     xor a
     ld [hl], a
 
+    ; init diagonal accumulator
+    ld hl, wPlayerSubD
+    ld [hl], a
+
     ret
 
 PlayerUpdateMove::
@@ -81,6 +84,17 @@ PlayerUpdateMove::
     jp OAMHigh
 
 .moveForward:
+    ld a, [wPlayerFacing]
+    ; check if diagonal
+    bit 0, a ; if odd is diagonal
+    jr z, .updateForward
+    ; it is diagonal so accumulate
+    ld hl, wPlayerSubD
+    ld a, [hl]
+    add a, $B5
+    ld [hl], a
+    jp nc, OAMHigh.done ; skip move if no carry
+.updateForward
     ld a, [wPlayerFacing]
     add a, a        ; each entry is 2 bytes, so facing * 2
     ld hl, .deltaTable
@@ -107,6 +121,17 @@ PlayerUpdateMove::
     ret
 
 .moveBackward:
+    ld a, [wPlayerFacing]
+    ; check if diagonal
+    bit 0, a ; if odd is diagonal
+    jr z, .updateBackward
+    ; it is diagonal so accumulate
+    ld hl, wPlayerSubD
+    ld a, [hl]
+    add a, $B5
+    ld [hl], a
+    jp nc, OAMHigh.done ; skip move if no carry
+.updateBackward
     ld a, [wPlayerFacing]
     add a, a
     ld hl, .deltaTable
