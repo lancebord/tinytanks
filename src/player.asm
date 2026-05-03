@@ -94,7 +94,7 @@ PlayerUpdateMove::
     add a, $B5
     ld [hl], a
     jp nc, OAMHigh.done ; skip move if no carry
-.updateForward
+.updateForward:
     ld a, [wPlayerFacing]
     add a, a        ; each entry is 2 bytes, so facing * 2
     ld hl, .deltaTable
@@ -104,17 +104,23 @@ PlayerUpdateMove::
     sub l
     ld h, a         ; hl now points to the dY entry for this facing
 
-    ld a, [hli]     ; dY
-    ld b, a
+    ; store the deltas to get future position
+    ld a, [hli] ; dY
+    ld d, a
+    ld a, [hl] ; dX
+    ld e, a
+
+    call CheckCollision
+    ret nz
+
+    ; apply movement if no collision
     ld a, [wShadowOAM + 0]
-    add a, b
+    add a, d ; apply dY
     ld [wShadowOAM + 0], a
     ld [wShadowOAM + 4], a
 
-    ld a, [hl]      ; dX
-    ld b, a
     ld a, [wShadowOAM + 1]
-    add a, b
+    add a, e ; apply dX
     ld [wShadowOAM + 1], a
     add a, 8
     ld [wShadowOAM + 5], a
@@ -131,7 +137,7 @@ PlayerUpdateMove::
     add a, $B5
     ld [hl], a
     jp nc, OAMHigh.done ; skip move if no carry
-.updateBackward
+.updateBackward:
     ld a, [wPlayerFacing]
     add a, a
     ld hl, .deltaTable
@@ -141,21 +147,27 @@ PlayerUpdateMove::
     sub l
     ld h, a
 
-    ld a, [hli]     ; dY — negate it
+    ; store the deltas to get future position
+    ld a, [hli] ; dY - negated
     cpl
     inc a
-    ld b, a
+    ld d, a
+    ld a, [hl] ; dX - negated
+    cpl
+    inc a
+    ld e, a
+
+    call CheckCollision
+    ret nz
+
+    ; apply movement
     ld a, [wShadowOAM + 0]
-    add a, b
+    add a, d
     ld [wShadowOAM + 0], a
     ld [wShadowOAM + 4], a
 
-    ld a, [hl]      ; dX — negate it
-    cpl
-    inc a
-    ld b, a
     ld a, [wShadowOAM + 1]
-    add a, b
+    add a, e
     ld [wShadowOAM + 1], a
     add a, 8
     ld [wShadowOAM + 5], a
@@ -172,6 +184,54 @@ PlayerUpdateMove::
     db  1,  -1  ; 5 SW
     db  0,  -1  ; 6 W
     db -1,  -1  ; 7 NW
+
+; @param d: dY
+; @param e: dX
+; @return z: set if a is a floor
+CheckCollision:
+    ; compute future screen space pos
+    ld a, [wShadowOAM]
+    add a, d ; add dY
+    sub a, 13 ; undo OAM Y offset
+    ld c, a
+
+    ld a, [wShadowOAM + 1]
+    add a, e ; add dX
+    sub a, 6 ; undo OAM X offset
+    ld b, a
+
+    ; check the four corners for overlap
+    push bc
+    call GetTileByPixel
+    ld a, [hl]
+    pop bc
+    call IsFloorTile ; top left
+    ret nz
+    ld a, b
+    add a, 11
+    ld b, a
+    push bc
+    call GetTileByPixel
+    ld a, [hl]
+    pop bc
+    call IsFloorTile ; top right
+    ret nz
+    ld a, c
+    add a, 11
+    ld c, a
+    push bc
+    call GetTileByPixel
+    ld a, [hl]
+    pop bc
+    call IsFloorTile ; bottom right
+    ret nz
+    ld a, b
+    sub a, 11
+    ld b, a
+    call GetTileByPixel
+    ld a, [hl]
+    call IsFloorTile ; bottom left
+    ret
 
 PlayerUpdateRot::
     ldh a, [hHeldKeys]
@@ -202,7 +262,7 @@ PlayerUpdateRot::
     xor a ; wrap to 0
     ld [hl], a
     jp .updateOAM
-.rightInc
+.rightInc:
     inc a
     ld [hl], a
 
@@ -369,4 +429,44 @@ OAMHigh:
     ld a, HIGH(wShadowOAM)
     ldh [hOAMHigh], a
 .done:
+    ret
+
+;; Collision handling
+
+; Convert pixel pos to a tilemap address
+; hl = $9800 + X + Y * 32
+; @param b: X
+; @param c: Y
+; @return hl: tile address
+GetTileByPixel:
+    ; First, need to divide by 8 to convert a pixel position to a tile position.
+    ; After this we want to multiply the Y position by 32.
+    ; These operations effectively cancel out so we only need to mask the Y value.
+    ld a, c
+    and a, %11111000
+    ld l, a
+    ld h, 0
+    ; Now we have the position * 8 in hl
+    add hl, hl ; position * 16
+    add hl, hl ; position * 32
+    ; Convert the X position to an offset.
+    ld a, b
+    srl a ; a / 2
+    srl a ; a / 4
+    srl a ; a / 8
+    ; Add the two offsets together.
+    add a, l
+    ld l, a
+    adc a, h
+    sub a, l
+    ld h, a
+    ; Add the offset to the tilemap's base address, and we are done!
+    ld bc, $9800
+    add hl, bc
+    ret
+
+; @param a: tile ID
+; @return z: set if a is a floor
+IsFloorTile:
+    cp a, $1C
     ret
