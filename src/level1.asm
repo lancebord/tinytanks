@@ -3,7 +3,8 @@ INCLUDE "hardware.inc/hardware.inc"
 
 SECTION "Level variables", WRAM0
 
-wUpdateCountdown:: db
+wRotCountdown:: db
+wMoveCountdown:: db
 
 SECTION "Level1", ROMX
 
@@ -87,8 +88,11 @@ Level1::
     ldh [rLCDC], a
 
     ; reset the level countdown
-    ld hl, wUpdateCountdown
-    ld a, 12
+    ld hl, wRotCountdown
+    ld a, 8
+    ld [hl], a
+    ld hl, wMoveCountdown
+    ld a, 2
     ld [hl], a
 .main:
     call WaitVBlank
@@ -96,20 +100,30 @@ Level1::
     ; Instant response on fresh press
     ldh a, [hPressedKeys]
     and PAD_LEFT | PAD_RIGHT
-    jr z, .checkCountdown
-    call PlayerUpdate
-    ld a, 12
-    ld [wUpdateCountdown], a
-    jr .main
+    jr z, .checkRot
+    call PlayerUpdateRot
+    ld a, 8
+    ld [wRotCountdown], a
+    jr .checkMove
 
-.checkCountdown:
-    ld hl, wUpdateCountdown
+.checkRot:
+    ld hl, wRotCountdown
+    dec [hl]
+    jr nz, .checkMove
+    push hl
+    call PlayerUpdateRot
+    pop hl
+    ld a, 8
+    ld [hl], a
+
+.checkMove:
+    ld hl, wMoveCountdown
     dec [hl]
     jr nz, .main
     push hl
-    call PlayerUpdate
+    call PlayerUpdateMove
     pop hl
-    ld a, 12
+    ld a, 2
     ld [hl], a
     jr .main
 
